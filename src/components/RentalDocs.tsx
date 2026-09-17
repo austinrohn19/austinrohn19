@@ -1,4 +1,5 @@
-import { getUser, PARTNERS } from '../data/seed'
+import { PARTNERS } from '../data/seed'
+import { useStore } from '../store'
 import type { Booking, Listing } from '../types'
 import {
   OWNER_FEE_RATE,
@@ -23,7 +24,7 @@ export function ReceiptDetails({
   listing: Listing
   perspective: 'renter' | 'owner'
 }) {
-  const rate = listing.rates[booking.unit] ?? 0
+  const rate = listing.rates[booking.unit] ?? booking.total / booking.quantity
   const ownerFee = ownerFeeFor(booking.total)
 
   return (
@@ -93,6 +94,7 @@ export function ContractDetails({
   booking: Booking
   listing: Listing
 }) {
+  const { getUser } = useStore()
   const owner = getUser(listing.ownerId)
   const renter = getUser(booking.renterId)
   const authenticator = PARTNERS.find((p) => p.id === listing.authenticatedBy)

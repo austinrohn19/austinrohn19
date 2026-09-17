@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
-import { useStore } from '../store'
+import { useStore, type NewListingInput } from '../store'
 import { pinIcon, TILE_ATTRIBUTION, TILE_URL } from '../components/markers'
-import type { Category, LatLng, Listing, RateUnit } from '../types'
+import type { Category, LatLng, RateUnit } from '../types'
 import { CATEGORY_LABELS, DAY_NAMES, formatHour } from '../types'
 
 const GRADIENTS: Record<Category, [string, string]> = {
@@ -86,6 +86,8 @@ export default function CreateListing() {
   const [meetupLoc, setMeetupLoc] = useState<LatLng | null>(null)
 
   const [submitted, setSubmitted] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   function toggleDay(d: number) {
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()))
@@ -112,8 +114,9 @@ export default function CreateListing() {
     if (!meetupLabel.trim()) errors.push('Describe the meetup location (e.g. "Diamond District, W 47th St").')
   }
 
-  function submit() {
+  async function submit() {
     setSubmitted(true)
+    setServerError(null)
 
     const rates: Partial<Record<RateUnit, number>> = {}
     if (hourRate) rates.hour = Number(hourRate)
@@ -136,10 +139,9 @@ export default function CreateListing() {
       meetupLoc &&
       meetupLabel.trim()
 
-    if (!valid) return
+    if (!valid || busy) return
 
-    const listing: Listing = {
-      id: `l-user-${Date.now()}`,
+    const input: NewListingInput = {
       title: title.trim(),
       brand: brand.trim(),
       category,
@@ -156,14 +158,18 @@ export default function CreateListing() {
         documentName: insFile!,
       },
       meetup: { location: meetupLoc!, label: meetupLabel.trim() },
-      ownerId: 'u-you',
       emoji: EMOJI[category],
       imageGradient: GRADIENTS[category],
-      verified: false,
-      createdAt: new Date().toISOString(),
     }
-    addListing(listing)
-    navigate(`/listing/${listing.id}`)
+    setBusy(true)
+    try {
+      const listing = await addListing(input)
+      navigate(`/listing/${listing.id}`)
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Publishing failed — try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const hours = Array.from({ length: 24 }, (_, i) => i)
@@ -377,8 +383,14 @@ export default function CreateListing() {
           </div>
         )}
 
-        <button className="btn btn-gold" style={{ width: '100%' }} onClick={submit}>
-          Publish listing
+        {serverError && (
+          <div className="notice notice-red" style={{ marginBottom: 14 }}>
+            {serverError}
+          </div>
+        )}
+
+        <button className="btn btn-gold" style={{ width: '100%' }} disabled={busy} onClick={submit}>
+          {busy ? 'Publishing…' : 'Publish listing'}
         </button>
       </div>
     </div>

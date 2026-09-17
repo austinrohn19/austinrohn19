@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom'
 import { ContractDetails, ReceiptDetails } from '../components/RentalDocs'
-import { getUser } from '../data/seed'
 import { useStore } from '../store'
 import { RATE_UNIT_LABELS, formatHour, formatMoney } from '../types'
 
 export default function Bookings() {
-  const { bookings, getListing } = useStore()
-  const mine = bookings.filter((b) => b.renterId === 'u-you')
+  const { bookings, getListing, getUser, me } = useStore()
+  const mine = bookings.filter((b) => b.renterId === me?.id)
 
   return (
     <div className="container" style={{ paddingBottom: 70 }}>
@@ -15,7 +14,7 @@ export default function Bookings() {
         <p>
           Your reservations with meetup details, receipts and rental agreements. Your full
           history also lives on{' '}
-          <Link to="/user/u-you" style={{ color: 'var(--gold-bright)' }}>
+          <Link to={`/user/${me?.id ?? ''}`} style={{ color: 'var(--gold-bright)' }}>
             your profile
           </Link>
           .
