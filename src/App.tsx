@@ -19,11 +19,17 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  const { me, ready, logout } = useStore()
+  const { me, ready, logout, demo } = useStore()
   const navigate = useNavigate()
 
   return (
     <>
+      {ready && demo && (
+        <div className="demo-banner">
+          Demo mode — no server attached, so accounts and data live in this browser only. Run the
+          repo locally with <code>npm run dev</code> for the full backend.
+        </div>
+      )}
       <nav className="navbar">
         <div className="container navbar-inner">
           <NavLink to="/" className="brand">
