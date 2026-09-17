@@ -11,9 +11,24 @@ import cookieParser from 'cookie-parser'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 const DATA_DIR = path.join(ROOT, 'data')
+fs.mkdirSync(DATA_DIR, { recursive: true })
 const PORT = Number(process.env.PORT) || 5177
-const JWT_SECRET = process.env.JWT_SECRET || 'luxelend-dev-secret-change-in-prod'
+const JWT_SECRET = process.env.JWT_SECRET || devSecret()
 const COOKIE = 'luxelend_token'
+
+/** Without JWT_SECRET set, generate one once and keep it in data/ (gitignored). */
+function devSecret() {
+  const file = path.join(DATA_DIR, 'jwt-secret')
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim()
+    if (existing) return existing
+  } catch {
+    // first run — fall through and create one
+  }
+  const secret = crypto.randomBytes(32).toString('hex')
+  fs.writeFileSync(file, secret, { mode: 0o600 })
+  return secret
+}
 const DEMO_PASSWORD = 'luxelend123'
 const SERVICE_FEE_RATE = 0.12
 
@@ -22,7 +37,6 @@ const RATE_UNITS = ['hour', 'day', 'week']
 
 // ---------- database -------------------------------------------------------
 
-fs.mkdirSync(DATA_DIR, { recursive: true })
 const db = new Database(path.join(DATA_DIR, 'luxelend.db'))
 db.pragma('journal_mode = WAL')
 
