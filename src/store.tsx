@@ -4,10 +4,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { Booking, Listing, RateUnit, User } from './types'
+import {
+  demoAddBooking,
+  demoAddListing,
+  demoLogin,
+  demoLogout,
+  demoSignup,
+  demoState,
+} from './demoBackend'
 
 export type Me = (User & { email: string }) | null
 
@@ -32,6 +41,8 @@ interface ServerState {
 interface StoreValue extends ServerState {
   /** False until the first /api/state fetch resolves. */
   ready: boolean
+  /** True when no API server is reachable and the in-browser demo backend is used. */
+  demo: boolean
   getUser: (id: string) => User | undefined
   getListing: (id: string) => Listing | undefined
   bookingsFor: (listingId: string) => Booking[]
@@ -64,23 +75,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     bookings: [],
   })
   const [ready, setReady] = useState(false)
+  const [demo, setDemo] = useState(false)
+  const demoRef = useRef(false)
 
   const refresh = useCallback(async () => {
-    const next = await api<ServerState>('/api/state')
-    setState(next)
+    if (demoRef.current) {
+      setState(demoState())
+      setReady(true)
+      return
+    }
+    try {
+      const next = await api<ServerState>('/api/state')
+      setState(next)
+    } catch {
+      // No API server (static hosting) — fall back to the in-browser demo backend.
+      demoRef.current = true
+      setDemo(true)
+      setState(demoState())
+    }
     setReady(true)
   }, [])
 
   useEffect(() => {
-    refresh().catch((err) => {
-      console.error('Failed to load app state — is the API server running?', err)
-      setReady(true)
-    })
+    refresh()
   }, [refresh])
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await api('/api/auth/login', { email, password })
+      if (demoRef.current) demoLogin(email, password)
+      else await api('/api/auth/login', { email, password })
       await refresh()
     },
     [refresh],
@@ -88,20 +111,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(
     async (input: { name: string; email: string; password: string; location?: string }) => {
-      await api('/api/auth/signup', input)
+      if (demoRef.current) demoSignup(input)
+      else await api('/api/auth/signup', input)
       await refresh()
     },
     [refresh],
   )
 
   const logout = useCallback(async () => {
-    await api('/api/auth/logout', {})
+    if (demoRef.current) demoLogout()
+    else await api('/api/auth/logout', {})
     await refresh()
   }, [refresh])
 
   const addListing = useCallback(
     async (input: NewListingInput) => {
-      const { listing } = await api<{ listing: Listing }>('/api/listings', input)
+      let listing: Listing
+      if (demoRef.current) {
+        listing = demoAddListing(input)
+      } else {
+        listing = (await api<{ listing: Listing }>('/api/listings', input)).listing
+      }
       await refresh()
       return listing
     },
@@ -110,7 +140,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addBooking = useCallback(
     async (input: NewBookingInput) => {
-      const { booking } = await api<{ booking: Booking }>('/api/bookings', input)
+      let booking: Booking
+      if (demoRef.current) {
+        booking = demoAddBooking(input)
+      } else {
+        booking = (await api<{ booking: Booking }>('/api/bookings', input)).booking
+      }
       await refresh()
       return booking
     },
@@ -136,6 +171,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       ready,
+      demo,
       getUser,
       getListing,
       bookingsFor,
@@ -145,7 +181,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addListing,
       addBooking,
     }),
-    [state, ready, getUser, getListing, bookingsFor, login, signup, logout, addListing, addBooking],
+    [state, ready, demo, getUser, getListing, bookingsFor, login, signup, logout, addListing, addBooking],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

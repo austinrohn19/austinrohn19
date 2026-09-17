@@ -1,5 +1,8 @@
 # 💎 LuxeLend — Luxury Rental Marketplace
 
+**Live demo:** https://austinrohn19.github.io/austinrohn19/ (in-browser demo
+mode — the same app served statically; run locally for the full backend)
+
 An Airbnb-style peer-to-peer marketplace for **luxury items**: watches, jewelry,
 handbags, cars, art and more. Owners list their pieces, set their own schedule
 and rates, and every handoff can happen at a vetted local jeweler or dealer for
@@ -54,6 +57,15 @@ The SQLite database is created and seeded on first run (`data/luxelend.db`).
 Demo accounts all use the password `luxelend123` — e.g. `austin@luxelend.test`
 (renter with history), `marcus@luxelend.test` (owner of the Daytona) — or
 create your own account from the login page.
+
+## Deployment
+
+Every push to `main` deploys the static build to GitHub Pages via
+`.github/workflows/deploy-pages.yml`. With no API server reachable, the app
+automatically switches to **demo mode**: the same UI backed by an in-browser
+store (demo logins work, data stays in that visitor's browser). Deploy the
+Express server (`npm start`) to any Node host — Railway, Fly.io, Render — for
+the full multi-user experience.
 
 ## Pages
 
