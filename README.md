@@ -27,32 +27,46 @@ on-the-spot authentication.
   listing, and each listing shows its nearest verification partners with
   distances.
 
+- **Real accounts & login** — email/password signup with bcrypt-hashed
+  passwords and httpOnly-cookie sessions (JWT). Booking and listing require a
+  signed-in account, the server enforces all rules (insurance required,
+  no double-booking, can't rent your own item), and each user's profile,
+  rentals, receipts and contracts follow their account.
+
 ## Tech stack
 
 - React 18 + TypeScript + Vite
 - React Router for pages
 - Leaflet + react-leaflet for the map (dark CARTO basemap)
-- LocalStorage persistence (demo — no backend required)
+- Express + better-sqlite3 API with bcryptjs password hashing and JWT
+  cookie sessions (`server/`)
 
 ## Run it
 
 ```bash
 npm install
-npm run dev     # dev server
+npm run dev     # API (port 5177) + Vite dev server together
 npm run build   # production build
-npm run preview # serve the production build
+npm start       # serve API + built frontend on port 5177
 ```
+
+The SQLite database is created and seeded on first run (`data/luxelend.db`).
+Demo accounts all use the password `luxelend123` — e.g. `austin@luxelend.test`
+(renter with history), `marcus@luxelend.test` (owner of the Daytona) — or
+create your own account from the login page.
 
 ## Pages
 
-| Route          | Page                                                        |
-| -------------- | ----------------------------------------------------------- |
-| `/`            | Browse the marketplace (filters + search)                   |
-| `/listing/:id` | Item detail: rates, schedule, insurance, booking, mini-map   |
-| `/list`        | List an item (details → rates → schedule → insurance → pin) |
-| `/map`         | Full map: item meetups + verification partners + navigation |
-| `/bookings`    | Your reservations with meetup + coverage info               |
+| Route          | Page                                                          |
+| -------------- | ------------------------------------------------------------- |
+| `/`            | Browse the marketplace (filters + search)                     |
+| `/login`       | Sign in / create an account (demo quick-logins included)      |
+| `/listing/:id` | Item detail: rates, schedule, insurance, booking, mini-map     |
+| `/list`        | List an item (details → rates → schedule → insurance → pin)   |
+| `/map`         | Full map: item meetups + verification partners + navigation   |
+| `/bookings`    | Your reservations with receipts and rental agreements (auth)  |
+| `/user/:id`    | Profile: history, contracts, receipts, authentications, terms |
 
-> Demo build: bookings and new listings are stored in your browser's
-> localStorage. A production version would add auth, payments, real insurance
-> verification, and a backend.
+> Demo build: the JWT secret defaults to a dev value (set `JWT_SECRET` in
+> production) and payments are simulated. Next steps for production: Stripe
+> payments, real insurance-document verification, and HTTPS-only cookies.

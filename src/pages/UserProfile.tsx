@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import ListingCard from '../components/ListingCard'
 import { ContractDetails, ReceiptDetails } from '../components/RentalDocs'
-import { getUser, PARTNERS } from '../data/seed'
+import { PARTNERS } from '../data/seed'
 import { useStore } from '../store'
 import {
   RATE_UNIT_LABELS,
@@ -14,8 +14,16 @@ import {
 
 export default function UserProfile() {
   const { id } = useParams()
-  const { listings, bookings } = useStore()
+  const { listings, bookings, getUser, me, ready } = useStore()
   const user = getUser(id ?? '')
+
+  if (!ready) {
+    return (
+      <div className="container">
+        <div className="empty">Loading profile…</div>
+      </div>
+    )
+  }
 
   if (!user) {
     return (
@@ -27,7 +35,7 @@ export default function UserProfile() {
     )
   }
 
-  const isYou = user.id === 'u-you'
+  const isYou = user.id === me?.id
   const owned = listings.filter((l) => l.ownerId === user.id)
   const ownedIds = new Set(owned.map((l) => l.id))
   const rented = bookings.filter((b) => b.renterId === user.id)

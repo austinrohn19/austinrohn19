@@ -7,112 +7,145 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Booking, Listing } from './types'
-import { SEED_BOOKINGS, SEED_LISTINGS } from './data/seed'
+import type { Booking, Listing, RateUnit, User } from './types'
 
-const STORAGE_KEY = 'luxelend-v2'
-const LEGACY_KEY = 'luxelend-v1'
+export type Me = (User & { email: string }) | null
 
-interface PersistedState {
-  userListings: Listing[]
+export interface NewListingInput
+  extends Omit<Listing, 'id' | 'ownerId' | 'verified' | 'createdAt' | 'authenticatedBy' | 'authenticatedOn'> {}
+
+export interface NewBookingInput {
+  listingId: string
+  date: string
+  startHour: number
+  unit: RateUnit
+  quantity: number
+}
+
+interface ServerState {
+  me: Me
+  users: User[]
+  listings: Listing[]
   bookings: Booking[]
 }
 
-interface StoreValue {
-  listings: Listing[]
-  bookings: Booking[]
-  addListing: (listing: Listing) => void
-  addBooking: (booking: Booking) => void
+interface StoreValue extends ServerState {
+  /** False until the first /api/state fetch resolves. */
+  ready: boolean
+  getUser: (id: string) => User | undefined
   getListing: (id: string) => Listing | undefined
   bookingsFor: (listingId: string) => Booking[]
+  login: (email: string, password: string) => Promise<void>
+  signup: (input: { name: string; email: string; password: string; location?: string }) => Promise<void>
+  logout: () => Promise<void>
+  addListing: (input: NewListingInput) => Promise<Listing>
+  addBooking: (input: NewBookingInput) => Promise<Booking>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-function loadPersisted(): PersistedState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as PersistedState
-      return {
-        userListings: Array.isArray(parsed.userListings) ? parsed.userListings : [],
-        bookings: Array.isArray(parsed.bookings) ? parsed.bookings : [],
-      }
-    }
-    // migrate v1 data: everything created locally belonged to the demo account
-    const legacy = localStorage.getItem(LEGACY_KEY)
-    if (legacy) {
-      const parsed = JSON.parse(legacy) as {
-        userListings?: (Listing & { owner?: string })[]
-        bookings?: (Booking & { renter?: string })[]
-      }
-      return {
-        userListings: (parsed.userListings ?? []).map((l) => ({
-          ...l,
-          ownerId: 'u-you',
-        })),
-        bookings: (parsed.bookings ?? []).map((b) => ({
-          ...b,
-          renterId: 'u-you',
-          serviceFee: b.serviceFee ?? 0,
-        })),
-      }
-    }
-  } catch {
-    // corrupted or unavailable storage — start fresh
-  }
-  return { userListings: [], bookings: [] }
+async function api<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const data = (await res.json().catch(() => ({}))) as T & { error?: string }
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
+  return data
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<PersistedState>(loadPersisted)
+  const [state, setState] = useState<ServerState>({
+    me: null,
+    users: [],
+    listings: [],
+    bookings: [],
+  })
+  const [ready, setReady] = useState(false)
+
+  const refresh = useCallback(async () => {
+    const next = await api<ServerState>('/api/state')
+    setState(next)
+    setReady(true)
+  }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-    } catch {
-      // storage may be unavailable (private mode) — app still works in memory
-    }
-  }, [state])
+    refresh().catch((err) => {
+      console.error('Failed to load app state — is the API server running?', err)
+      setReady(true)
+    })
+  }, [refresh])
 
-  const listings = useMemo(
-    () => [...state.userListings, ...SEED_LISTINGS],
-    [state.userListings],
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await api('/api/auth/login', { email, password })
+      await refresh()
+    },
+    [refresh],
   )
 
-  const allBookings = useMemo(
-    () => [...state.bookings, ...SEED_BOOKINGS],
-    [state.bookings],
+  const signup = useCallback(
+    async (input: { name: string; email: string; password: string; location?: string }) => {
+      await api('/api/auth/signup', input)
+      await refresh()
+    },
+    [refresh],
   )
 
-  const addListing = useCallback((listing: Listing) => {
-    setState((s) => ({ ...s, userListings: [listing, ...s.userListings] }))
-  }, [])
+  const logout = useCallback(async () => {
+    await api('/api/auth/logout', {})
+    await refresh()
+  }, [refresh])
 
-  const addBooking = useCallback((booking: Booking) => {
-    setState((s) => ({ ...s, bookings: [booking, ...s.bookings] }))
-  }, [])
+  const addListing = useCallback(
+    async (input: NewListingInput) => {
+      const { listing } = await api<{ listing: Listing }>('/api/listings', input)
+      await refresh()
+      return listing
+    },
+    [refresh],
+  )
+
+  const addBooking = useCallback(
+    async (input: NewBookingInput) => {
+      const { booking } = await api<{ booking: Booking }>('/api/bookings', input)
+      await refresh()
+      return booking
+    },
+    [refresh],
+  )
+
+  const getUser = useCallback(
+    (id: string) => state.users.find((u) => u.id === id),
+    [state.users],
+  )
 
   const getListing = useCallback(
-    (id: string) => listings.find((l) => l.id === id),
-    [listings],
+    (id: string) => state.listings.find((l) => l.id === id),
+    [state.listings],
   )
 
   const bookingsFor = useCallback(
-    (listingId: string) => allBookings.filter((b) => b.listingId === listingId),
-    [allBookings],
+    (listingId: string) => state.bookings.filter((b) => b.listingId === listingId),
+    [state.bookings],
   )
 
   const value = useMemo(
     () => ({
-      listings,
-      bookings: allBookings,
-      addListing,
-      addBooking,
+      ...state,
+      ready,
+      getUser,
       getListing,
       bookingsFor,
+      login,
+      signup,
+      logout,
+      addListing,
+      addBooking,
     }),
-    [listings, allBookings, addListing, addBooking, getListing, bookingsFor],
+    [state, ready, getUser, getListing, bookingsFor, login, signup, logout, addListing, addBooking],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

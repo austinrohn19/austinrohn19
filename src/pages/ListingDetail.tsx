@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
-import { getUser, PARTNERS } from '../data/seed'
+import { PARTNERS } from '../data/seed'
 import { useStore } from '../store'
 import { pinIcon, TILE_ATTRIBUTION, TILE_URL } from '../components/markers'
 import type { Booking, RateUnit } from '../types'
@@ -30,7 +30,8 @@ function coveredDates(b: Booking): string[] {
 
 export default function ListingDetail() {
   const { id } = useParams()
-  const { getListing, bookingsFor, addBooking } = useStore()
+  const navigate = useNavigate()
+  const { getListing, bookingsFor, addBooking, getUser, me } = useStore()
   const listing = getListing(id ?? '')
 
   const availableUnits = useMemo(
@@ -43,6 +44,8 @@ export default function ListingDetail() {
   const [startHour, setStartHour] = useState<number | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [confirmed, setConfirmed] = useState<Booking | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   if (!listing) {
     return (
@@ -120,25 +123,27 @@ export default function ListingDetail() {
     }
   }
 
+  const isOwner = Boolean(me && listing && me.id === listing.ownerId)
   const canBook = Boolean(date) && !error && (activeUnit !== 'hour' || startHour !== null)
 
-  function book() {
-    if (!listing || !canBook) return
-    const booking: Booking = {
-      id: `b-${Date.now()}`,
-      listingId: listing.id,
-      date,
-      startHour: startHour ?? listing.availability.startHour,
-      unit: activeUnit,
-      quantity,
-      total,
-      serviceFee,
-      deposit: listing.securityDeposit,
-      renterId: 'u-you',
-      createdAt: new Date().toISOString(),
+  async function book() {
+    if (!listing || !canBook || busy) return
+    setServerError(null)
+    setBusy(true)
+    try {
+      const booking = await addBooking({
+        listingId: listing.id,
+        date,
+        startHour: startHour ?? listing.availability.startHour,
+        unit: activeUnit,
+        quantity,
+      })
+      setConfirmed(booking)
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Booking failed — try again.')
+    } finally {
+      setBusy(false)
     }
-    addBooking(booking)
-    setConfirmed(booking)
   }
 
   return (
@@ -380,6 +385,7 @@ export default function ListingDetail() {
             </div>
 
             {error && <div className="notice notice-red">{error}</div>}
+            {serverError && <div className="notice notice-red">{serverError}</div>}
             {confirmed && (
               <div className="notice notice-green">
                 ✓ Reserved! View it under <Link to="/bookings" style={{ textDecoration: 'underline' }}>My Rentals</Link>.
@@ -388,14 +394,28 @@ export default function ListingDetail() {
               </div>
             )}
 
-            <button
-              className="btn btn-gold"
-              style={{ width: '100%', marginTop: 14 }}
-              disabled={!canBook}
-              onClick={book}
-            >
-              Reserve now
-            </button>
+            {!me ? (
+              <button
+                className="btn btn-gold"
+                style={{ width: '100%', marginTop: 14 }}
+                onClick={() => navigate('/login', { state: { from: `/listing/${listing.id}` } })}
+              >
+                Log in to reserve
+              </button>
+            ) : isOwner ? (
+              <button className="btn btn-gold" style={{ width: '100%', marginTop: 14 }} disabled>
+                This is your listing
+              </button>
+            ) : (
+              <button
+                className="btn btn-gold"
+                style={{ width: '100%', marginTop: 14 }}
+                disabled={!canBook || busy}
+                onClick={book}
+              >
+                {busy ? 'Reserving…' : 'Reserve now'}
+              </button>
+            )}
             <p style={{ color: 'var(--text-faint)', fontSize: 12, marginBottom: 0 }}>
               You won't be charged in this demo. Deposits are released after the item is
               returned and inspected.
