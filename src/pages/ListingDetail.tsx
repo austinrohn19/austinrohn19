@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
-import { PARTNERS } from '../data/seed'
+import { getUser, PARTNERS } from '../data/seed'
 import { useStore } from '../store'
 import { pinIcon, TILE_ATTRIBUTION, TILE_URL } from '../components/markers'
 import type { Booking, RateUnit } from '../types'
@@ -13,6 +13,7 @@ import {
   distanceMiles,
   formatHour,
   formatMoney,
+  serviceFeeFor,
 } from '../types'
 
 /** ISO dates covered by a booking (a week booking covers 7 days per unit, etc.). */
@@ -69,6 +70,8 @@ export default function ListingDetail() {
 
   const rate = listing.rates[activeUnit] ?? 0
   const total = rate * quantity
+  const serviceFee = serviceFeeFor(total)
+  const authenticator = PARTNERS.find((p) => p.id === listing.authenticatedBy)
 
   const hourOptions: number[] = []
   for (let h = av.startHour; h < av.endHour; h++) hourOptions.push(h)
@@ -98,8 +101,9 @@ export default function ListingDetail() {
         unit: activeUnit,
         quantity,
         total: 0,
+        serviceFee: 0,
         deposit: 0,
-        renter: '',
+        renterId: '',
         createdAt: '',
       })
       const clash = existing.some((b) => {
@@ -128,8 +132,9 @@ export default function ListingDetail() {
       unit: activeUnit,
       quantity,
       total,
+      serviceFee,
       deposit: listing.securityDeposit,
-      renter: 'You',
+      renterId: 'u-you',
       createdAt: new Date().toISOString(),
     }
     addBooking(booking)
@@ -157,8 +162,20 @@ export default function ListingDetail() {
             <p style={{ color: 'var(--text-dim)' }}>{listing.description}</p>
             <div className="kv">
               <span className="k">Owner</span>
-              <span className="v">{listing.owner}</span>
+              <span className="v">
+                <Link to={`/user/${listing.ownerId}`} style={{ color: 'var(--gold-bright)' }}>
+                  {getUser(listing.ownerId)?.name ?? 'LuxeLend member'}
+                </Link>
+              </span>
             </div>
+            {authenticator && (
+              <div className="kv">
+                <span className="k">Authenticated by</span>
+                <span className="v">
+                  ✓ {authenticator.name} · {listing.authenticatedOn}
+                </span>
+              </div>
+            )}
             <div className="kv">
               <span className="k">Estimated value</span>
               <span className="v">{formatMoney(listing.estimatedValue)}</span>
@@ -348,13 +365,17 @@ export default function ListingDetail() {
               <span className="v">{formatMoney(total)}</span>
             </div>
             <div className="kv">
+              <span className="k">Service fee (12%)</span>
+              <span className="v">{formatMoney(serviceFee)}</span>
+            </div>
+            <div className="kv">
               <span className="k">Refundable deposit</span>
               <span className="v">{formatMoney(listing.securityDeposit)}</span>
             </div>
             <div className="kv">
               <span className="k">Due today</span>
               <span className="v" style={{ color: 'var(--gold-bright)', fontSize: 17 }}>
-                {formatMoney(total + listing.securityDeposit)}
+                {formatMoney(total + serviceFee + listing.securityDeposit)}
               </span>
             </div>
 

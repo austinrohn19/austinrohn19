@@ -156,7 +156,7 @@ export default function CreateListing() {
         documentName: insFile!,
       },
       meetup: { location: meetupLoc!, label: meetupLabel.trim() },
-      owner: 'You',
+      ownerId: 'u-you',
       emoji: EMOJI[category],
       imageGradient: GRADIENTS[category],
       verified: false,

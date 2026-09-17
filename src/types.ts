@@ -42,10 +42,13 @@ export interface Listing {
     location: LatLng
     label: string
   }
-  owner: string
+  ownerId: string
   emoji: string
   imageGradient: [string, string]
   verified: boolean
+  /** Verification partner (jeweler/dealer) that authenticated this item, if any. */
+  authenticatedBy?: string
+  authenticatedOn?: string
   createdAt: string
 }
 
@@ -58,11 +61,43 @@ export interface Booking {
   unit: RateUnit
   quantity: number
   total: number
+  serviceFee: number
   deposit: number
   /** Optional verification partner chosen as the meetup point. */
   meetupPartnerId?: string
-  renter: string
+  renterId: string
   createdAt: string
+}
+
+export interface User {
+  id: string
+  name: string
+  memberSince: string
+  rating: number
+  location: string
+  bio: string
+}
+
+/** Marketplace take rates: renter pays a service fee, owners pay a payout fee. */
+export const SERVICE_FEE_RATE = 0.12
+export const OWNER_FEE_RATE = 0.03
+
+export function serviceFeeFor(rentalTotal: number): number {
+  return Math.round(rentalTotal * SERVICE_FEE_RATE)
+}
+
+export function ownerFeeFor(rentalTotal: number): number {
+  return Math.round(rentalTotal * OWNER_FEE_RATE)
+}
+
+export function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 }
 
 export type PartnerType = 'jeweler' | 'dealer' | 'authenticator' | 'watch specialist'

@@ -4,6 +4,7 @@ import ListingDetail from './pages/ListingDetail'
 import CreateListing from './pages/CreateListing'
 import MapPage from './pages/MapPage'
 import Bookings from './pages/Bookings'
+import UserProfile from './pages/UserProfile'
 
 export default function App() {
   return (
@@ -23,6 +24,9 @@ export default function App() {
             <NavLink to="/bookings" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
               My Rentals
             </NavLink>
+            <NavLink to="/user/u-you" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+              My Profile
+            </NavLink>
           </div>
           <NavLink to="/list" className="btn btn-gold btn-sm">
             + List an item
@@ -36,6 +40,7 @@ export default function App() {
         <Route path="/list" element={<CreateListing />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/bookings" element={<Bookings />} />
+        <Route path="/user/:id" element={<UserProfile />} />
       </Routes>
     </>
   )
